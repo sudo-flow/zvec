@@ -1,0 +1,76 @@
+# =============================================================================
+# Development Dockerfile for Zvec
+# Includes all development tools for building and testing
+# =============================================================================
+
+FROM quay.io/pypa/manylinux_2_28_x86_64
+
+# Install build and development dependencies
+RUN yum install -y \
+    # Build tools
+    git \
+    wget \
+    vim \
+    # Debugging tools
+    gdb \
+    strace \
+    valgrind \
+    # Code formatting
+    && yum clean all \
+    && rm -rf /var/cache/yum
+
+# Set Python version (use 3.10 by default)
+ENV PYTHON_BIN=/opt/python/cp310-cp310/bin/python
+ENV PATH="/opt/python/cp310-cp310/bin:${PATH}"
+# Also add other Python versions to PATH for testing
+ENV PATH="/opt/python/cp311-cp311/bin:/opt/python/cp312-cp312/bin:${PATH}"
+
+# Install Python development tools
+RUN pip install --no-cache-dir \
+    # Build tools
+    "pip>=24.0" \
+    "scikit-build-core>=0.11.0" \
+    "pybind11>=2.13.0" \
+    "cmake>=3.26" \
+    "ninja>=1.11" \
+    "setuptools_scm>=8.0" \
+    # Development tools
+    "ruff>=0.4.0" \
+    "black>=24.0.0" \
+    "mypy>=1.8.0" \
+    "pytest>=8.0.0" \
+    "pytest-cov>=4.1.0" \
+    "pytest-mock>=3.12.0" \
+    # Documentation
+    "mkdocs>=1.5.0" \
+    "mkdocs-material>=9.5.0" \
+    "mkdocstrings[python]>=0.24.0" \
+    # Type stubs
+    "pybind11-stubgen>=2.5.0"
+
+# Create non-root user for development
+RUN groupadd -r zvec && useradd -r -g zvec -u 1000 -m -s /bin/bash zvec
+
+# Create workspace and data directories
+RUN mkdir -p /workspace /data && \
+    chown -R zvec:zvec /workspace /data
+
+# Set up environment
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/workspace/python \
+    ZVEC_LOG_LEVEL=INFO \
+    ZVEC_LOG_TYPE=CONSOLE
+
+# Switch to non-root user
+USER zvec
+WORKDIR /workspace
+
+# Verify installation
+RUN python --version && \
+    cmake --version && \
+    ninja --version && \
+    ruff --version
+
+# Default to bash for interactive development
+CMD ["/bin/bash"]

@@ -1,0 +1,84 @@
+# =============================================================================
+# Docker Compose for Zvec Vector Database
+# =============================================================================
+
+services:
+  # Main Zvec service with Python API
+  zvec:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zvec:latest
+    container_name: zvec-db
+    restart: unless-stopped
+    volumes:
+      # Persist vector data
+      - zvec-data:/data
+      # Mount local scripts for development
+      - ./examples:/app/examples:ro
+    environment:
+      - ZVEC_LOG_LEVEL=INFO
+      - ZVEC_LOG_TYPE=CONSOLE
+      - ZVEC_QUERY_THREADS=4
+      - ZVEC_OPTIMIZE_THREADS=2
+      - ZVEC_MEMORY_LIMIT_MB=2048
+    healthcheck:
+      test: ["CMD", "python", "-c", "import zvec; exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - zvec-network
+
+  # Optional: Jupyter notebook service for interactive development
+  jupyter:
+    image: quay.io/jupyter/scientific-python-notebook:latest
+    container_name: zvec-jupyter
+    restart: unless-stopped
+    volumes:
+      - zvec-data:/data
+      - ./examples:/home/jovyan/examples:ro
+      - ./notebooks:/home/jovyan/notebooks
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    command: >
+      start-notebook.sh
+      --NotebookApp.token=''
+      --NotebookApp.password=''
+      --NotebookApp.allow_origin='*'
+    networks:
+      - zvec-network
+    profiles:
+      - dev
+
+  # Optional: Simple REST API wrapper (you would need to implement this)
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.api
+  #   container_name: zvec-api
+  #   restart: unless-stopped
+  #   volumes:
+  #     - zvec-data:/data
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - ZVEC_DATA_PATH=/data
+  #     - API_HOST=0.0.0.0
+  #     - API_PORT=8080
+  #   networks:
+  #     - zvec-network
+  #   depends_on:
+  #     - zvec
+
+volumes:
+  zvec-data:
+    driver: local
+    name: zvec-data
+
+networks:
+  zvec-network:
+    driver: bridge
+    name: zvec-network

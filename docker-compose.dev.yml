@@ -1,0 +1,72 @@
+# =============================================================================
+# Development Docker Compose for Zvec
+# Mounts source code for live development
+# =============================================================================
+
+services:
+  zvec-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: zvec:dev
+    container_name: zvec-dev
+    restart: unless-stopped
+    volumes:
+      # Mount source code for live editing
+      - .:/workspace:cached
+      # Persist build artifacts
+      - zvec-build:/workspace/build
+      # Persist vector data
+      - zvec-data:/data
+      # Python cache
+      - pip-cache:/root/.cache/pip
+    working_dir: /workspace
+    environment:
+      - ZVEC_LOG_LEVEL=DEBUG
+      - ZVEC_LOG_TYPE=CONSOLE
+      - ZVEC_QUERY_THREADS=4
+      - ZVEC_OPTIMIZE_THREADS=2
+    # Keep container running for development
+    command: sleep infinity
+    stdin_open: true
+    tty: true
+    networks:
+      - zvec-network
+
+  # Development service with test tools
+  zvec-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: zvec:dev
+    container_name: zvec-test
+    volumes:
+      - .:/workspace:cached
+      - zvec-build:/workspace/build
+      - pip-cache:/root/.cache/pip
+    working_dir: /workspace
+    environment:
+      - ZVEC_LOG_LEVEL=WARN
+      - PYTHONPATH=/workspace/python
+    # Run tests on startup
+    command: >
+      bash -c "
+        pip install -e '.[dev]' &&
+        pytest python/tests/ -v --cov=zvec
+      "
+    networks:
+      - zvec-network
+    profiles:
+      - test
+
+volumes:
+  zvec-build:
+    driver: local
+  zvec-data:
+    driver: local
+  pip-cache:
+    driver: local
+
+networks:
+  zvec-network:
+    driver: bridge
